@@ -3,7 +3,7 @@
   "bin": {
     "brianbooms-mcp": "./bin/brianbooms-mcp"
   },
-  "description": "MCP server: Brian Booms x402 product catalog as callable agent tools (search, product details, live 402 payment requirements). Read-only — never executes payments.",
+  "description": "MCP server: Brian Booms x402 product catalog as callable agent tools (search, product details, live 402 payment requirements). Read-only \u2014 never executes payments.",
   "engines": {
     "node": ">=18"
   },
@@ -14,7 +14,7 @@
     "README.md",
     "requirements.txt"
   ],
-  "homepage": "https://brianbooms.com/agents/",
+  "homepage": "https://brianbooms.com",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -30,5 +30,6 @@
     "type": "git",
     "url": "https://github.com/brianbooms/brianbooms-mcp"
   },
-  "version": "1.0.3"
+  "version": "1.0.5",
+  "mcpName": "com.brianbooms/brianbooms-mcp"
 }
