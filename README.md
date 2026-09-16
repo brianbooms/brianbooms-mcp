@@ -4,6 +4,8 @@ Puts the Brian Booms x402 product catalog **inside AI agents** as callable tools
 Any MCP-capable agent can search the catalog, read license terms, fetch live
 x402 payment requirements, and complete a purchase — without opening a browser.
 
+Docs & agent storefront: https://brianbooms.com/agents/
+
 *Made with Suno* (catalog ethics: disclose on first mention of how the music is made).
 
 ## Tools

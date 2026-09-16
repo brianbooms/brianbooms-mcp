@@ -22,6 +22,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("brianbooms")
 
 CATALOG_URL = "https://brianbooms.com/.well-known/purchase-catalog.json"
+DOCS_URL = "https://brianbooms.com/agents/"  # canonical docs & agent storefront (hub is upstream)
 MARKET_URL = "https://x402-market.brianbooms.workers.dev/api/listings"
 NETWORKS = ["base", "polygon", "arbitrum", "avalanche", "solana"]
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -108,6 +109,7 @@ def search_catalog(query: str, max_price: float | None = None) -> str:
     hits.sort(key=lambda h: float(h["price_usd"]))
     return json.dumps({
         "disclosure": DISCLOSURE,
+        "docs": DOCS_URL,
         "catalog_source": CATALOG_SOURCE,
         "count": len(hits),
         "results": hits[:25],
@@ -124,6 +126,7 @@ def get_product(sku: str) -> str:
         return json.dumps({"error": f"Unknown SKU '{sku}'.", "did_you_mean": close})
     return json.dumps({
         "disclosure": DISCLOSURE,
+        "docs": DOCS_URL,
         "sku": p["sku"],
         "name": p["name"],
         "price": _money(p),
@@ -178,6 +181,7 @@ def buy_product(sku: str) -> str:
         reqs = {"raw": body[:2000]}
     return json.dumps({
         "disclosure": DISCLOSURE,
+        "docs": DOCS_URL,
         "sku": sku,
         "name": p["name"],
         "price": _money(p),
@@ -203,6 +207,7 @@ def get_market() -> str:
         brief = [{"name": l.get("name"), "url": l.get("url")} for l in listings]
         return json.dumps({
             "disclosure": DISCLOSURE,
+            "docs": DOCS_URL,
             "count": len(brief),
             "listings": brief,
             "source": MARKET_URL,
