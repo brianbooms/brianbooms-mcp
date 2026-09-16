@@ -331,8 +331,12 @@ def main():
     npm_publish(pkg, tgz_data, tgz_name)
     git_push(head, remote)
     verify_live(pkg, head)
-    step("PIPELINE COMPLETE: npm + GitHub both live and verified; "
-         "hub remains the canonical upstream")
+    if DRY:
+        step("DRY-RUN COMPLETE: no publish, no push — everything else green; "
+             "hub remains the canonical upstream")
+    else:
+        step("PIPELINE COMPLETE: npm + GitHub both live and verified; "
+             "hub remains the canonical upstream")
 
 
 if __name__ == "__main__":
