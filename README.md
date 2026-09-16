@@ -10,10 +10,10 @@ x402 payment requirements, and complete a purchase — without opening a browser
 
 | Tool | What it does |
 |---|---|
-| `search_catalog(query, max_price?)` | Search 33 agent-buyable digital products (music licenses, sample packs, commissions, wallpapers; $0.05–$999 USDC) |
+| `search_catalog(query, max_price?)` | Search 24 agent-buyable digital products (music packs, wallpapers, ringtones, zines, sleep memberships; $0.05–$299 USDC) |
 | `get_product(sku)` | Full details: price, buy URL, delivery, license-terms summary |
 | `buy_product(sku)` | Fetches the **live** HTTP 402 from the buy URL and returns payment requirements + step-by-step x402 signing instructions |
-| `get_market()` | The 33 AP2 market listings (machine-readable directory) |
+| `get_market()` | The AP2 market listings (machine-readable directory of buyable products) |
 
 **Read-only by design.** The server never signs, submits, or executes a payment.
 `buy_product` returns *what to sign*, not a completed purchase. The catalog

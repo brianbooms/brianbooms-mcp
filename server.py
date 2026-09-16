@@ -6,8 +6,8 @@ The buy_product tool fetches the live 402 payment requirements and returns
 step-by-step instructions so the AGENT (with its human's explicit authorization)
 can complete the x402 payment itself.
 
-Catalog: 33 digital products (music licenses, sample packs, commissions,
-wallpapers), $0.05-$999 USDC, settled via x402 v1 on Base, Polygon, Arbitrum,
+Catalog: 24 digital products (music packs, wallpapers, ringtones, zines,
+sleep memberships), $0.05-$299 USDC, settled via x402 v1 on Base, Polygon, Arbitrum,
 Avalanche, or Solana (EIP-3009 on EVM, gasless for the buyer).
 """
 
@@ -87,7 +87,7 @@ def _license_summary(p):
 
 @mcp.tool()
 def search_catalog(query: str, max_price: float | None = None) -> str:
-    """Search the Brian Booms catalog of 33 agent-buyable digital products.
+    """Search the Brian Booms catalog of 24 agent-buyable digital products.
 
     query: keywords like "podcast intro", "game music", "wallpaper", "commission", "lease"
     max_price: optional USD cap (e.g. 30 for products at most $30)
@@ -195,7 +195,7 @@ def buy_product(sku: str) -> str:
 
 @mcp.tool()
 def get_market() -> str:
-    """The 33 AP2 market listings (machine-readable directory of everything buyable)."""
+    """AP2 market listings (machine-readable directory of buyable products)."""
     try:
         listings = _http_get_json(MARKET_URL)
         if isinstance(listings, dict):
