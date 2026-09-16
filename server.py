@@ -6,8 +6,8 @@ The buy_product tool fetches the live 402 payment requirements and returns
 step-by-step instructions so the AGENT (with its human's explicit authorization)
 can complete the x402 payment itself.
 
-Catalog: 24 digital products (music packs, wallpapers, ringtones, zines,
-sleep memberships), $0.05-$299 USDC, settled via x402 v1 on Base, Polygon, Arbitrum,
+Catalog: 24 digital products (music licenses, sample packs, commissions,
+wallpapers), $0.05-$999 USDC, settled via x402 v1 on Base, Polygon, Arbitrum,
 Avalanche, or Solana (EIP-3009 on EVM, gasless for the buyer).
 """
 
@@ -22,7 +22,6 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("brianbooms")
 
 CATALOG_URL = "https://brianbooms.com/.well-known/purchase-catalog.json"
-DOCS_URL = "https://brianbooms.com/agents/"  # canonical docs & agent storefront (hub is upstream)
 MARKET_URL = "https://x402-market.brianbooms.workers.dev/api/listings"
 NETWORKS = ["base", "polygon", "arbitrum", "avalanche", "solana"]
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -88,7 +87,7 @@ def _license_summary(p):
 
 @mcp.tool()
 def search_catalog(query: str, max_price: float | None = None) -> str:
-    """Search the Brian Booms catalog of 24 agent-buyable digital products.
+    """Search the Brian Booms catalog of 33 agent-buyable digital products.
 
     query: keywords like "podcast intro", "game music", "wallpaper", "commission", "lease"
     max_price: optional USD cap (e.g. 30 for products at most $30)
@@ -109,7 +108,6 @@ def search_catalog(query: str, max_price: float | None = None) -> str:
     hits.sort(key=lambda h: float(h["price_usd"]))
     return json.dumps({
         "disclosure": DISCLOSURE,
-        "docs": DOCS_URL,
         "catalog_source": CATALOG_SOURCE,
         "count": len(hits),
         "results": hits[:25],
@@ -126,7 +124,6 @@ def get_product(sku: str) -> str:
         return json.dumps({"error": f"Unknown SKU '{sku}'.", "did_you_mean": close})
     return json.dumps({
         "disclosure": DISCLOSURE,
-        "docs": DOCS_URL,
         "sku": p["sku"],
         "name": p["name"],
         "price": _money(p),
@@ -181,7 +178,6 @@ def buy_product(sku: str) -> str:
         reqs = {"raw": body[:2000]}
     return json.dumps({
         "disclosure": DISCLOSURE,
-        "docs": DOCS_URL,
         "sku": sku,
         "name": p["name"],
         "price": _money(p),
@@ -199,7 +195,7 @@ def buy_product(sku: str) -> str:
 
 @mcp.tool()
 def get_market() -> str:
-    """AP2 market listings (machine-readable directory of buyable products)."""
+    """The 33 AP2 market listings (machine-readable directory of everything buyable)."""
     try:
         listings = _http_get_json(MARKET_URL)
         if isinstance(listings, dict):
@@ -207,13 +203,48 @@ def get_market() -> str:
         brief = [{"name": l.get("name"), "url": l.get("url")} for l in listings]
         return json.dumps({
             "disclosure": DISCLOSURE,
-            "docs": DOCS_URL,
             "count": len(brief),
             "listings": brief,
             "source": MARKET_URL,
         }, indent=1)
     except Exception as e:
         return json.dumps({"error": f"Market unreachable: {e}", "source": MARKET_URL})
+
+
+RESIDENTS_BOARD_URL = "https://pay.brianbooms.com/api/v1/residents/board"
+
+
+@mcp.tool()
+def list_bounties(kind: str | None = None, max_results: int = 25) -> str:
+    """List open agent-residency bounty tasks on the Brian Booms hub (read-only).
+
+    Residents earn Booms Rewards credit for verifiable hub-maintenance work:
+    link checks, schema checks, and catalog metadata QA. Claims are made on
+    the worker API (they need the wallet-bound resident identity), never here.
+
+    kind: optional filter — "link-check", "schema-check", or "metadata-qa"
+    max_results: cap the returned tasks (default 25)
+    """
+    try:
+        board = _http_get_json(RESIDENTS_BOARD_URL)
+    except Exception as e:
+        return json.dumps({
+            "error": f"Residency board unreachable: {e}",
+            "note": "The residency board goes live with the worker deploy; "
+                    "claims stay on the worker API either way.",
+        })
+    tasks = board.get("tasks", []) if isinstance(board, dict) else []
+    if kind:
+        tasks = [t for t in tasks if t.get("kind") == kind]
+    return json.dumps({
+        "disclosure": DISCLOSURE,
+        "pool_remaining_usdc": board.get("pool_remaining_usdc"),
+        "pool_status": board.get("pool_status"),
+        "count": len(tasks),
+        "tasks": tasks[: max(1, min(100, int(max_results or 25)))],
+        "note": "Credit only, never cash. Claims via POST /api/v1/residents/claim "
+                "with the wallet-bound resident identity.",
+    }, indent=1)
 
 
 if __name__ == "__main__":
