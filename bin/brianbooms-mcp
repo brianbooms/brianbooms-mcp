@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# npm bin wrapper: runs the Python MCP server over stdio.
+# Resolve symlinks: npm installs global bins as symlinks into the global
+# bin dir, so plain `dirname "$0"` points at the wrong place (1.0.2 bug).
+SCRIPT_PATH="$0"
+if command -v readlink >/dev/null 2>&1; then
+    RESOLVED="$(readlink -f "$SCRIPT_PATH" 2>/dev/null)"
+    [ -n "$RESOLVED" ] && SCRIPT_PATH="$RESOLVED"
+fi
+exec python3 "$(dirname "$SCRIPT_PATH")/../server.py" "$@"

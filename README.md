@@ -39,7 +39,7 @@ pip install mcp
 }
 ```
 
-Published to npm as `brianbooms-mcp` (v1.0.1). Run the published package:
+Published to npm as `brianbooms-mcp` (v1.0.3). Run the published package:
 `npx -y brianbooms-mcp` — or install the Python entrypoint with pipx/uvx.
 
 ## How payment works (x402 v1)
