@@ -17,11 +17,16 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
       - name: Set up Node
+        # NOTE: do NOT set registry-url here. That input makes setup-node
+        # write a dummy auth token, which suppresses npm's OIDC exchange
+        # and the publish fails with 404.
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-      - name: Update npm (trusted publishing needs npm >= 11.5.1)
+      - name: Update npm (npm stage needs npm >= 11.15.0)
         run: npm install -g npm@latest
-      - name: Publish to npm via OIDC (no token)
-        run: npm publish --access public
+      - name: Stage to npm via OIDC (maintainer approves with 2FA)
+        # Trusted-publisher configs can always stage; direct `npm publish`
+        # is opt-in per config. Staging keeps a human 2FA approval step
+        # before the version goes live.
+        run: npm stage publish
