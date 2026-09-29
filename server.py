@@ -6,13 +6,13 @@ The buy_product tool fetches the live 402 payment requirements and returns
 step-by-step instructions so the AGENT (with its human's explicit authorization)
 can complete the x402 payment itself.
 
-Catalog: 24 digital products (music licenses, sample packs, commissions,
-wallpapers), $0.05-$999 USDC, settled via x402 v1 on Base, Polygon, Arbitrum,
-Avalanche, or Solana (EIP-3009 on EVM, gasless for the buyer).
+Catalog: agent-buyable digital products (music licenses, sample packs, commissions,
+wallpapers), $0.05-$999 USDC, settled via x402 v1 on Base (EIP-3009, gasless).
 """
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -23,7 +23,6 @@ mcp = FastMCP("brianbooms")
 
 CATALOG_URL = "https://brianbooms.com/.well-known/purchase-catalog.json"
 MARKET_URL = "https://x402-market.brianbooms.workers.dev/api/listings"
-NETWORKS = ["base", "polygon", "arbitrum", "avalanche", "solana"]
 HERE = os.path.dirname(os.path.abspath(__file__))
 FALLBACK_PATH = os.path.join(HERE, "catalog-fallback.json")
 DISCLOSURE = "Made with Suno"  # catalog ethics: disclose on first mention of how the music is made
@@ -87,7 +86,7 @@ def _license_summary(p):
 
 @mcp.tool()
 def search_catalog(query: str, max_price: float | None = None) -> str:
-    """Search the Brian Booms catalog of 33 agent-buyable digital products.
+    """Search the Brian Booms catalog of agent-buyable digital products.
 
     query: keywords like "podcast intro", "game music", "wallpaper", "commission", "lease"
     max_price: optional USD cap (e.g. 30 for products at most $30)
@@ -132,41 +131,48 @@ def get_product(sku: str) -> str:
         "license": _license_summary(p),
         "rewards_eligible": p.get("rewards_eligible"),
         "network": CATALOG.get("x402_network", "Base eip155:8453"),
-        "accepted_networks": NETWORKS,
         "asset": CATALOG.get("asset", "USDC"),
         "purchase_policy": "Human explicit authorization required, one purchase per request. This server never pays.",
     }, indent=1)
 
 
+def _sanitize_partner(partner):
+    """Booms Partners attribution id: lowercase [a-z0-9-], max 40 chars."""
+    try:
+        v = str(partner or "").lower().strip()
+        if v and len(v) <= 40 and re.match(r"^[a-z0-9][a-z0-9-]*$", v):
+            return v
+    except Exception:
+        pass
+    return ""
+
+
 @mcp.tool()
-def buy_product(sku: str) -> str:
+def buy_product(sku: str, partner: str | None = None) -> str:
     """Get the LIVE x402 payment requirements for a product.
 
     Returns the 402 requirements plus step-by-step signing instructions.
     READ-ONLY: this tool never signs or submits anything. The calling agent
     completes the payment itself after explicit human authorization.
+
+    partner: optional Booms Partners id (e.g. "acme-music"). When given, the
+    purchase attributes to that partner for 20% revenue share — pass it
+    through from the embedding site or the agent operator's partner id.
     """
     p = PRODUCTS.get(sku)
     if not p:
         return json.dumps({"error": f"Unknown SKU '{sku}'."})
     buy_url = p["buy_url"]
+    partner_id = _sanitize_partner(partner)
+    if partner_id:
+        sep = "&" if "?" in buy_url else "?"
+        buy_url = buy_url + sep + "partner=" + partner_id
     try:
         req = urllib.request.Request(buy_url, headers={"User-Agent": "brianbooms-mcp/1.0"})
         with urllib.request.urlopen(req, timeout=20) as r:
             status, body = r.status, r.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         status, body = e.code, e.read().decode("utf-8")
-    except Exception as e:
-        # urllib IncompleteRead on some egress paths; curl is the proven fallback
-        try:
-            out = subprocess.run(
-                ["curl", "-s", "--max-time", "20", "-A", "brianbooms-mcp/1.0",
-                 "-w", "\n%{http_code}", buy_url],
-                capture_output=True, timeout=25, check=True)
-            *body_lines, code = out.stdout.decode("utf-8").rsplit("\n", 1)
-            status, body = int(code), "\n".join(body_lines)
-        except Exception as e2:
-            return json.dumps({"error": f"buy_url unreachable: {e} / {e2}"})
     if status != 402:
         return json.dumps({
             "error": f"Expected HTTP 402 from {buy_url}, got {status}.",
@@ -176,26 +182,33 @@ def buy_product(sku: str) -> str:
         reqs = json.loads(body)
     except json.JSONDecodeError:
         reqs = {"raw": body[:2000]}
-    return json.dumps({
+    how = [
+        "1. Confirm your human explicitly authorized THIS purchase (one purchase per request).",
+        "2. Read the 402 'requirements': network, asset (USDC), amount, payTo, and scheme (x402 v1 exact / EIP-3009).",
+        "3. Sign the EIP-3009 authorization off-chain with the payer wallet (gasless for you; the facilitator submits on-chain).",
+        "4. Resubmit the request to resubmit_url (below) with the signed payload per the x402 v1 spec.",
+        "5. On success the settlement response contains the download/delivery URL. Keep the transaction receipt.",
+    ]
+    out = {
         "disclosure": DISCLOSURE,
         "sku": sku,
         "name": p["name"],
         "price": _money(p),
         "requirements": reqs,
-        "how_to_pay": [
-            "1. Confirm your human explicitly authorized THIS purchase (one purchase per request).",
-            "2. Read the 402 'requirements': network, asset (USDC), amount, payTo, and scheme (x402 v1 exact / EIP-3009).",
-            "3. Sign the EIP-3009 authorization off-chain with the payer wallet (gasless for you; the facilitator submits on-chain).",
-            "4. Resubmit the request to buy_url with the signed payload per the x402 v1 spec.",
-            "5. On success the settlement response contains the download/delivery URL. Keep the transaction receipt.",
-        ],
+        "resubmit_url": buy_url,
+        "how_to_pay": how,
         "note": "This MCP server cannot and will not sign or pay on your behalf.",
-    }, indent=1)
+    }
+    if partner_id:
+        out["partner"] = partner_id
+        out["partner_note"] = (f"This purchase will attribute to Booms Partner '{partner_id}' "
+                               "(20% revenue share). Resubmit to resubmit_url exactly as given.")
+    return json.dumps(out, indent=1)
 
 
 @mcp.tool()
 def get_market() -> str:
-    """The 33 AP2 market listings (machine-readable directory of everything buyable)."""
+    """The AP2 market listings (machine-readable directory of everything buyable)."""
     try:
         listings = _http_get_json(MARKET_URL)
         if isinstance(listings, dict):
@@ -209,42 +222,6 @@ def get_market() -> str:
         }, indent=1)
     except Exception as e:
         return json.dumps({"error": f"Market unreachable: {e}", "source": MARKET_URL})
-
-
-RESIDENTS_BOARD_URL = "https://pay.brianbooms.com/api/v1/residents/board"
-
-
-@mcp.tool()
-def list_bounties(kind: str | None = None, max_results: int = 25) -> str:
-    """List open agent-residency bounty tasks on the Brian Booms hub (read-only).
-
-    Residents earn Booms Rewards credit for verifiable hub-maintenance work:
-    link checks, schema checks, and catalog metadata QA. Claims are made on
-    the worker API (they need the wallet-bound resident identity), never here.
-
-    kind: optional filter — "link-check", "schema-check", or "metadata-qa"
-    max_results: cap the returned tasks (default 25)
-    """
-    try:
-        board = _http_get_json(RESIDENTS_BOARD_URL)
-    except Exception as e:
-        return json.dumps({
-            "error": f"Residency board unreachable: {e}",
-            "note": "The residency board goes live with the worker deploy; "
-                    "claims stay on the worker API either way.",
-        })
-    tasks = board.get("tasks", []) if isinstance(board, dict) else []
-    if kind:
-        tasks = [t for t in tasks if t.get("kind") == kind]
-    return json.dumps({
-        "disclosure": DISCLOSURE,
-        "pool_remaining_usdc": board.get("pool_remaining_usdc"),
-        "pool_status": board.get("pool_status"),
-        "count": len(tasks),
-        "tasks": tasks[: max(1, min(100, int(max_results or 25)))],
-        "note": "Credit only, never cash. Claims via POST /api/v1/residents/claim "
-                "with the wallet-bound resident identity.",
-    }, indent=1)
 
 
 if __name__ == "__main__":
