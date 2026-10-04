@@ -1,60 +1,42 @@
-# brianbooms MCP server
+# brianbooms-mcp
 
-Puts the Brian Booms x402 product catalog **inside AI agents** as callable tools.
-Any MCP-capable agent can search the catalog, read license terms, fetch live
-x402 payment requirements, and complete a purchase — without opening a browser.
-
-*Made with Suno* (catalog ethics: disclose on first mention of how the music is made).
-
-## Tools
-
-| Tool | What it does |
-|---|---|
-| `search_catalog(query, max_price?)` | Search 33 agent-buyable digital products (music licenses, sample packs, commissions, wallpapers; $0.05–$999 USDC) |
-| `get_product(sku)` | Full details: price, buy URL, delivery, license-terms summary |
-| `buy_product(sku, partner?)` | Fetches the **live** HTTP 402 from the buy URL and returns payment requirements + step-by-step x402 signing instructions. Optional `partner` id attributes the purchase to a Booms Partner (20% revenue share) |
-| `get_market()` | The 33 AP2 market listings (machine-readable directory) |
-
-**Read-only by design.** The server never signs, submits, or executes a payment.
-`buy_product` returns *what to sign*, not a completed purchase. The catalog
-itself requires **explicit human authorization, one purchase per request**.
+MCP server for [Brian Booms](https://brianbooms.com)' agent-commerce storefront — ambient music, ringtones, wallpapers, track leases, game licenses, and custom commissions, all buyable by AI agents with USDC on Base via x402.
 
 ## Install
 
-```bash
-pip install mcp
-```
-
-## Run (stdio)
-
-```jsonc
-// Claude Desktop / claude-code MCP config
+```json
 {
   "mcpServers": {
     "brianbooms": {
-      "command": "python3",
-      "args": ["/path/to/brianbooms-mcp/server.py"]
+      "command": "npx",
+      "args": ["-y", "github:brianbooms/brianbooms-mcp"]
     }
   }
 }
 ```
 
-Or with uvx / pipx once published to npm/PyPI (not yet published).
+No API key. No account. The server is read-only discovery — your agent pays with its own x402/EVM wallet.
 
-## How payment works (x402 v1)
+## Tools
 
-1. Agent calls `buy_product(sku)` → gets the 402 requirements
-2. Human explicitly authorizes the purchase
-3. Agent signs the EIP-3009 authorization **off-chain** (gasless for the buyer; the facilitator submits on-chain)
-4. Agent resubmits to the buy URL with the signed payload
-5. Settlement response contains the download/delivery URL
+| Tool | What it does |
+|---|---|
+| `catalog` | List all 22 products: sku, name, USD price |
+| `product` | Full details for one SKU: description, price, delivery, buy URL |
+| `purchase_instructions` | Exact live x402 payment requirements for a SKU (pay-to, amount, asset, network), parsed from its 402 response |
+| `payment_format` | Byte-exact X-PAYMENT header construction guide — call BEFORE the first payment attempt |
+| `rewards` | Booms Rewards explainer: buyer earn rates (10%, 15% first purchase, 20% via referral), 5% referral earnings, and free merchant enrollment |
 
-Network: Base `eip155:8453`, asset USDC. Catalog loads live from
-`https://brianbooms.com/.well-known/purchase-catalog.json` at startup with a
-local fallback copy (`catalog-fallback.json`).
+## Buy flow
 
-## Files
+1. `catalog` → pick a product.
+2. `purchase_instructions` → get exact payment requirements.
+3. `payment_format` → byte-exact X-PAYMENT header construction (prevents 80%+ of payment failures).
+4. Your agent pays with any x402 v1 client (USDC on Base, facilitator `facilitator.xpay.sh`).
+5. The 200 response is the order: instant download link, or fulfillment status for commissions/licenses.
 
-- `server.py` — the MCP server (stdio)
-- `catalog-fallback.json` — local catalog copy used if the hub is unreachable
-- `package.json` — npm wrapper metadata (for registry publishing)
+Buyers earn 10% back in Booms Rewards credit on every purchase (15% on the first). Merchants join free: https://brianbooms.com/partner/
+
+## License
+
+MIT
