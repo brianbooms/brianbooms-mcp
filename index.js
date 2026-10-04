@@ -24,7 +24,7 @@ async function catalog() {
   return catalogCache;
 }
 
-const server = new McpServer({ name: "brianbooms", version: "1.0.0" });
+const server = new McpServer({ name: "brianbooms", version: "1.1.0" });
 
 server.tool(
   "catalog",
@@ -113,6 +113,53 @@ server.tool(
         "REFERRALS: share a ?ref= link and earn 5% of everything your referrals buy.",
         "MERCHANTS: join free at " + PARTNER_URL + " — verify your domain (~60 seconds, one meta tag), no wallet, no reserve, no agreement, no fees. Your buyers earn portable credit redeemable across the network.",
         "Machine-readable program: https://brianbooms.com/partner/program.json",
+      ].join("\n"),
+    }],
+  })
+);
+
+server.tool(
+  "payment_format",
+  "Byte-exact guide to constructing a valid X-PAYMENT header for x402 v1 (EVM, USDC on Base). Call this BEFORE your agent's first payment attempt — 80%+ of failed payments are header-format errors this guide prevents.",
+  {},
+  async () => ({
+    content: [{
+      type: "text",
+      text: [
+        "X-PAYMENT HEADER — EXACT CONSTRUCTION (x402 v1, EVM, USDC on Base)",
+        "",
+        "STEP 1 — Build this JSON object (all fields required):",
+        '{"x402Version":1,"scheme":"exact","network":"base","payload":{"authorization":{"from":"0xYOUR_WALLET","to":"0xPAYTO_FROM_PURCHASE_INSTRUCTIONS","value":"AMOUNT_IN_USDC_BASE_UNITS","validAfter":"0","validBefore":"9999999999","nonce":"0xRANDOM_32_BYTES"},"signature":"0xSIGNATURE"}}',
+        "",
+        "Field notes:",
+        "- x402Version must be the number 1 (not the string \"1\").",
+        "- scheme must be exactly \"exact\".",
+        "- network must be exactly \"base\" (not \"eip155:8453\").",
+        "- value is USDC in base units as a STRING: $1.00 = \"1000000\" (6 decimals). Get the exact amount from the purchase_instructions tool.",
+        "- nonce must be a fresh 0x-prefixed 32-byte hex string, never reused.",
+        "- validAfter/validBefore are unix timestamps as STRINGS. Use now-60 to now+600.",
+        "- authorization is an EIP-3009 transferWithAuthorization for the USDC contract on Base.",
+        "",
+        "STEP 2 — Sign the EIP-3009 authorization with your wallet. The signature MUST start with \"0x\".",
+        "  #1 CAUSE OF VERIFY FAILURES: eth_account's .signature.hex() returns 130 hex chars with NO 0x prefix.",
+        "  It looks valid locally but ALWAYS fails verification. Always send \"0x\" + sig_hex.",
+        "",
+        "STEP 3 — Encode the JSON as base64url (RFC 4648 section 5):",
+        "  - Use base64url alphabet: A-Z a-z 0-9 - _ (NOT standard base64's + /).",
+        "  - Strip ALL whitespace from the header value first.",
+        "  - Do NOT send raw JSON without encoding (it will be rejected).",
+        "  - Do NOT double-encode (base64 of base64 is the #1 cause of malformed_header_not_json).",
+        "",
+        "STEP 4 — Send as the X-PAYMENT header (or payment-signature alias) on a GET to the buy_url.",
+        "",
+        "PREFLIGHT (free, moves no funds): POST your base64 X-PAYMENT to",
+        "  https://pay.brianbooms.com/api/v1/x402/validate",
+        "  with JSON body {\"x_payment\": \"<your header>\"}. It names the exact failing check.",
+        "",
+        "IF REJECTED: the 402 response carries a machine-readable `correction` object",
+        "  (code/why/expected/example/retry). Fix per the code and retry — do NOT resubmit",
+        "  a byte-identical header (it fails byte-identically). Full code table:",
+        "  https://pay.brianbooms.com/.well-known/x402#corrections",
       ].join("\n"),
     }],
   })
